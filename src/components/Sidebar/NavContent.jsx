@@ -10,7 +10,7 @@ import { ReactComponent as PoolTogetherIcon } from "../../assets/icons/33-togeth
 import { trim, shorten } from "../../helpers";
 import { useAddress, useWeb3Context } from "src/hooks/web3Context";
 import useBonds from "../../hooks/Bonds";
-import { Paper, Link, Box, Typography, SvgIcon } from "@material-ui/core";
+import { Paper, Link, Box, Typography, SvgIcon, Divider } from "@material-ui/core";
 import { Skeleton } from "@material-ui/lab";
 import "./sidebar.scss";
 
@@ -154,6 +154,19 @@ function NavContent() {
                 </Link>
               );
             })}
+          </div>
+          <div className="other-apps-container">
+            <Divider color="secondary" />
+            <div className="other-apps">
+              <Typography variant="h6">Other Apps</Typography>
+              <Link href="https://www.olympusdao.finance/pro" target="_blank" className="other-app">
+                <Typography variant="body1">
+                  <SvgIcon color="primary" component={OlympusIcon} />
+                  Olympus Pro
+                </Typography>
+              </Link>
+            </div>
+            <Divider color="secondary" />
           </div>
           <div className="dapp-menu-social">
             <Social />

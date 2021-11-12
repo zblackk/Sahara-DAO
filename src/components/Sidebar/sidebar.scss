@@ -119,6 +119,28 @@
   }
 }
 
+.other-apps-container {
+  text-align: left;
+  padding-left: 13px;
+  padding-right: 13px;
+  margin-top: 8px;
+  .other-apps {
+    padding-bottom: 0.33em;
+    padding-left: 20px;
+    line-height: 200% !important;
+    justify-content: center;
+    > h6 {
+      color: #999999;
+    }
+    .other-app {
+      > p {
+        padding-top: 0.33em;
+        margin-left: 33px;
+      }
+    }
+  }
+}
+
 .social-row {
   display: flex;
   flex-flow: row;
