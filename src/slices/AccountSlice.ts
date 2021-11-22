@@ -104,6 +104,8 @@ export const getDonationBalances = createAsyncThunk(
     // Change to .allowance before mainnet
     const giveAllowance = await mockSohmContract._allowedValue(address, addresses[networkID].GIVING_ADDRESS);
     const givingContract = new ethers.Contract(addresses[networkID].GIVING_ADDRESS as string, OlympusGiving, provider);
+    // this works if Indigo set it up as a separate mapping, will adjust if otherwise
+    const totalDonated = await givingContract.totalDonated(address);
     let donationInfo: IUserDonationInfo = {};
     let i = 0;
     let endOfDonations = false;
@@ -128,6 +130,7 @@ export const getDonationBalances = createAsyncThunk(
       giving: {
         sohmGive: +giveAllowance,
         donationInfo: donationInfo,
+        totalDonated: totalDonated,
       },
     };
   },
@@ -267,7 +270,7 @@ export const calculateUserBondDetails = createAsyncThunk(
 );
 
 interface IAccountSlice extends IUserAccountDetails, IUserBalances {
-  giving: { sohmGive: number; donationInfo: IUserDonationInfo };
+  giving: { sohmGive: number; donationInfo: IUserDonationInfo; totalDonated: number; };
   redeeming: { sohmRedeemable: number; recipientInfo: IUserRecipientInfo };
   bonds: { [key: string]: IUserBondDetails };
   loading: boolean;
@@ -277,7 +280,7 @@ const initialState: IAccountSlice = {
   loading: false,
   bonds: {},
   balances: { ohm: "", sohm: "", wsohmAsSohm: "", wsohm: "", fsohm: "", pool: "", mockSohm: "" },
-  giving: { sohmGive: 0, donationInfo: {} },
+  giving: { sohmGive: 0, donationInfo: {}, totalDonated: 0 },
   redeeming: {
     sohmRedeemable: 0,
     recipientInfo: {
