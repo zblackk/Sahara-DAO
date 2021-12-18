@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect, ChangeEvent } from "react";
+import { useCallback, useState, useEffect, ChangeEvent, ChangeEventHandler } from "react";
 import { useDispatch } from "react-redux";
 import { usePathForNetwork } from "src/hooks/usePathForNetwork";
 import { useHistory } from "react-router";
@@ -23,10 +23,12 @@ import {
   Checkbox,
 } from "@material-ui/core";
 import { t, Trans } from "@lingui/macro";
-import NewReleases from "@material-ui/icons/NewReleases";
+import CheckBoxIcon from "@material-ui/icons/CheckBox";
+import CheckBoxOutlineBlankIcon from "@material-ui/icons/CheckBoxOutlineBlank";
+
 import RebaseTimer from "../../components/RebaseTimer/RebaseTimer";
 import TabPanel from "../../components/TabPanel";
-import { trim } from "../../helpers";
+import { getGohmBalFromSohm, trim } from "../../helpers";
 import { changeApproval, changeStake } from "../../slices/StakeThunk";
 import { changeApproval as changeGohmApproval } from "../../slices/WrapThunk";
 import "./stake.scss";
@@ -40,7 +42,7 @@ import ZapCta from "../Zap/ZapCta";
 import { useAppSelector } from "src/hooks";
 import { ExpandMore } from "@material-ui/icons";
 import StakeRow from "./StakeRow";
-import Metric from "../../components/Metric/Metric";
+import { Metric, MetricCollection } from "../../components/Metric";
 
 function a11yProps(index: number) {
   return {
@@ -58,7 +60,7 @@ function Stake() {
 
   const [zoomed, setZoomed] = useState(false);
   const [view, setView] = useState(0);
-  const [quantity, setQuantity] = useState(0);
+  const [quantity, setQuantity] = useState("");
 
   const isAppLoading = useAppSelector(state => state.app.loading);
   const currentIndex = useAppSelector(state => {
@@ -79,6 +81,12 @@ function Stake() {
   const fsohmBalance = useAppSelector(state => {
     return state.account.balances && state.account.balances.fsohm;
   });
+  const fgohmBalance = useAppSelector(state => {
+    return state.account.balances && state.account.balances.fgohm;
+  });
+  const fgOHMAsfsOHMBalance = useAppSelector(state => {
+    return state.account.balances && state.account.balances.fgOHMAsfsOHM;
+  });
   const wsohmBalance = useAppSelector(state => {
     return state.account.balances && state.account.balances.wsohm;
   });
@@ -92,7 +100,11 @@ function Stake() {
   const gOhmBalance = useAppSelector(state => {
     return state.account.balances && state.account.balances.gohm;
   });
-  const gOhmAsSohm = calculateWrappedAsSohm(gOhmBalance);
+
+  // const gOhmAsSohm = calculateWrappedAsSohm(gOhmBalance);
+  const gOhmAsSohm = useAppSelector(state => {
+    return state.account.balances && state.account.balances.gOhmAsSohmBal;
+  });
   const wsohmAsSohm = calculateWrappedAsSohm(wsohmBalance);
 
   const stakeAllowance = useAppSelector(state => {
@@ -122,11 +134,11 @@ function Stake() {
 
   const setMax = () => {
     if (view === 0) {
-      setQuantity(Number(ohmBalance));
+      setQuantity(ohmBalance);
     } else if (!checked) {
-      setQuantity(Number(sohmBalance));
+      setQuantity(sohmBalance);
     } else if (checked) {
-      setQuantity(Number(gOhmAsSohm));
+      setQuantity(gOhmAsSohm.toString());
     }
   };
 
@@ -140,7 +152,7 @@ function Stake() {
 
   const onChangeStake = async (action: string) => {
     // eslint-disable-next-line no-restricted-globals
-    if (isNaN(quantity) || quantity === 0) {
+    if (isNaN(Number(quantity)) || Number(quantity) === 0) {
       // eslint-disable-next-line no-alert
       return dispatch(error(t`Please enter a value!`));
     }
@@ -159,13 +171,24 @@ function Stake() {
       );
     }
 
-    const formQuant = checked && currentIndex && view === 1 ? quantity / Number(currentIndex) : quantity;
+    /**
+     * converts sOHM quantity to gOHM quantity when box is checked for gOHM staking
+     * @returns sOHM as gOHM quantity
+     */
+    // const formQuant = checked && currentIndex && view === 1 ? quantity / Number(currentIndex) : quantity;
+    const formQuant = async () => {
+      if (checked && currentIndex && view === 1) {
+        return await getGohmBalFromSohm({ provider, networkID: networkId, sOHMbalance: quantity });
+      } else {
+        return quantity;
+      }
+    };
 
     await dispatch(
       changeStake({
         address,
         action,
-        value: formQuant.toString(),
+        value: await formQuant(),
         provider,
         networkID: networkId,
         version2: true,
@@ -198,8 +221,12 @@ function Stake() {
     setView(newView);
   };
 
+  const handleChangeQuantity = useCallback<ChangeEventHandler<HTMLInputElement>>(e => {
+    if (Number(e.target.value) >= 0) setQuantity(e.target.value);
+  }, []);
+
   const trimmedBalance = Number(
-    [sohmBalance, gOhmAsSohm, sohmV1Balance, wsohmAsSohm, fiatDaoAsSohm, fsohmBalance]
+    [sohmBalance, gOhmAsSohm, sohmV1Balance, wsohmAsSohm, fiatDaoAsSohm, fsohmBalance, fgOHMAsfsOHMBalance]
       .filter(Boolean)
       .map(balance => Number(balance))
       .reduce((a, b) => a + b, 0)
@@ -219,7 +246,7 @@ function Stake() {
   }).format(stakingTVL);
   const formattedCurrentIndex = trim(Number(currentIndex), 1);
 
-  const [checked, setChecked] = useState(true);
+  const [checked, setChecked] = useState(false);
 
   const handleCheck = (e: ChangeEvent<HTMLInputElement>) => {
     setChecked(e.target.checked);
@@ -238,16 +265,23 @@ function Stake() {
               onChange={e => handleCheck(e)}
               color="primary"
               inputProps={{ "aria-label": "checkbox" }}
+              className="stake-to-ohm-checkbox"
+              checkedIcon={<CheckBoxIcon viewBox="0 0 25 25" />}
+              icon={<CheckBoxOutlineBlankIcon viewBox="0 0 25 25" />}
             />
           </Box>
           <Box width="100%">
-            <Typography variant="body2" style={{ margin: "10px" }}>
+            <Typography variant="body2" style={{ margin: "10px 10px 10px 0px" }}>
               {view === 0 &&
                 checked &&
-                `Staking ${quantity.toFixed(4)} OHM to ${(quantity / Number(currentIndex)).toFixed(4)} gOHM`}
+                `Staking ${Number(quantity).toFixed(4)} OHM to ${(Number(quantity) / Number(currentIndex)).toFixed(
+                  4,
+                )} gOHM`}
               {view === 1 &&
                 checked &&
-                `Unstaking ${quantity.toFixed(4)} gOHM to ${(quantity * Number(currentIndex)).toFixed(4)} OHM`}
+                `Unstaking ${(Number(quantity) / Number(currentIndex)).toFixed(4)} gOHM to ${Number(quantity).toFixed(
+                  4,
+                )} OHM`}
               {view === 0 && !checked && "Stake to gOHM instead"}
               {view === 1 && !checked && "Unstake from gOHM instead"}
             </Typography>
@@ -270,36 +304,26 @@ function Stake() {
             </Grid>
 
             <Grid item>
-              <div className="stake-top-metrics">
-                <Grid container spacing={2} alignItems="flex-end">
-                  <Grid item xs={12} sm={4} md={4} lg={4}>
-                    <Metric
-                      className="stake-apy"
-                      label={t`APY`}
-                      metric={`${formattedTrimmedStakingAPY}%`}
-                      isLoading={stakingAPY ? false : true}
-                    />
-                  </Grid>
-
-                  <Grid item xs={12} sm={4} md={4} lg={4}>
-                    <Metric
-                      className="stake-tvl"
-                      label={t`Total Value Deposited`}
-                      metric={formattedStakingTVL}
-                      isLoading={stakingTVL ? false : true}
-                    />
-                  </Grid>
-
-                  <Grid item xs={12} sm={4} md={4} lg={4}>
-                    <Metric
-                      className="stake-index"
-                      label={t`Current Index`}
-                      metric={`${formattedCurrentIndex} OHM`}
-                      isLoading={currentIndex ? false : true}
-                    />
-                  </Grid>
-                </Grid>
-              </div>
+              <MetricCollection>
+                <Metric
+                  className="stake-apy"
+                  label={t`APY`}
+                  metric={`${formattedTrimmedStakingAPY}%`}
+                  isLoading={stakingAPY ? false : true}
+                />
+                <Metric
+                  className="stake-tvl"
+                  label={t`Total Value Deposited`}
+                  metric={formattedStakingTVL}
+                  isLoading={stakingTVL ? false : true}
+                />
+                <Metric
+                  className="stake-index"
+                  label={t`Current Index`}
+                  metric={`${formattedCurrentIndex} OHM`}
+                  isLoading={currentIndex ? false : true}
+                />
+              </MetricCollection>
             </Grid>
 
             <div className="staking-area">
@@ -370,7 +394,7 @@ function Stake() {
                                 placeholder="Enter an amount"
                                 className="stake-input"
                                 value={quantity}
-                                onChange={e => setQuantity(Number(e.target.value))}
+                                onChange={handleChangeQuantity}
                                 labelWidth={0}
                                 endAdornment={
                                   <InputAdornment position="end">
@@ -480,6 +504,12 @@ function Stake() {
                         <StakeRow
                           title={`${t`Wrapped Balance`}`}
                           balance={`${trim(Number(gOhmBalance), 4)} gOHM`}
+                          indented
+                          {...{ isAppLoading }}
+                        />
+                        <StakeRow
+                          title={`${t`Wrapped Balance in Fuse`}`}
+                          balance={`${trim(Number(fgohmBalance), 4)} gOHM`}
                           indented
                           {...{ isAppLoading }}
                         />
